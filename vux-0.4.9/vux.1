@@ -1,0 +1,689 @@
+.\"                                      Hey, EMACS: -*- nroff -*-
+.TH VUX 1 "November 04, 2004" "0.4.9" "Vacillating Utilitarian eXtemporizer"
+.SH NAME
+vux \(en a rating-based, random ogg and mp3 player
+.SH SYNOPSIS
+.B vux
+.RB [\| "\-bcdghjklnquvAFPRSVYZ" \|]
+.RB [\| "\-a"
+.IR file \|]
+.RB [\| "\-e"
+.IR pattern \|]
+.RB [\| "\-f"
+.IR value \|]
+.RB [\| "\-i"
+.IR option \|]
+.RB [\| "\-m"
+.IR option \|]
+.RB [\| "\-o"
+.IR value \|]
+.RB [\| "\-p"
+.IR file \|]
+.RB [\| "\-r"
+.IR value \|]
+.RB [\| "\-s"
+.IR file \|]
+.RB [\| "\-t"
+.IR value \|]
+.RB [\| "\-w"
+.IR option \|]
+.RB [\| "\-x"
+.IR option \|]
+.RB [\| "\-y"
+.IR file \|]
+.RB [\| "\-z"
+.IR file \|]
+.RB [\| "\-B"
+.IR value \|]
+.RB [\| "\-C"
+.IR value \|]
+.RB [\| "\-D"
+.IR value \|]
+.RB [\| "\-G"
+.IR value \|]
+.RB [\| "\-I"
+.IR value \|]
+.RB [\| "\-M"
+.IR value \|]
+.RB [\| "\-N"
+.IR value \|]
+.RB [\| "\-O"
+.IR device \|]
+.RB [\| "\-T"
+.IR value \|]
+.RB [\| "\-U"
+.IR value \|]
+.RB [\| "\-W"
+.IR option \|]
+.RB [\| "\-X"
+.IR value \|]
+.br
+.SH DESCRIPTION
+.PP
+\fBvux\fP is a command-line ogg and mp3 utility that plays songs
+according to a rating system designed to keep track of user listening
+habits.  By default, \fBvux\fP will give each song a percent chance of
+playing, based on where it lies on a bell curve of all ratings.  Songs
+are picked at random, then played if they pass the percent chance.
+Ratings increase when you play complete songs and decrease when you skip
+them.  The ratings scorelist is plain text.  By default, a separate
+agelist is maintained to prevent repeats based on time since last
+played.  See the \fBMECHANICS\fP section for details.
+.SH OPTIONS
+When using \fBvux\fP for the first time, you must first run \fBvux \-x
+generate\fP to generate an initial scorelist from a playlist.  See the
+\fB\-x generate\fP option for the playlist format.  In most cases,
+\fBfind ~/music -type f > ~/.vux/playlist\fP will work.  Use \-p
+\fIplaylist\fP to override the default of \fB~/.vux/playlist\fP.
+.TP
+.BI "\-a " "file"
+Use \fIfile\fP as the agelist instead of the default.
+.TP
+.B "\-b"
+Disable repeat updates when songs are played completely, when using
+\fB\-x weed\fP or when using \fBvuxctl next prev\fP or \fBreplay\fP.
+.TP
+.B "\-c"
+Disable rating checks.
+.TP
+.B "\-d"
+Disable rating updates when songs are played completely, when using
+\fB\-x weed\fP.
+.TP
+.BI "\-e " "pattern"
+Only play songs matching \fIpattern\fP.  Mean and standard deviation are
+still calculated based on all ratings, but only those matching
+\fIpattern\fP are considered for playing.  Globbing follows the rules
+for zsh filename generation; man zshexpn(1) for details.  For example:
+\fBvux \-e '*Artist/Album*'\fP.  The entire pathname from the scorelist
+is used for matching.
+.TP
+.BI "\-f " "value"
+Only used with \fB\-x force\fP.  Force ratings to \fIvalue\fP.
+.TP
+.B "\-g"
+Print ratings from \fB\-x ratings\fP and \fB-R\fP in xgraph-friendly
+format.  This also works with xplot.  For example: \fBvux \-xr \-g |
+xgraph\fP would display a graph where x is rating and y is count.  This
+option implies \fB\-q\fP and disables \fB\-V\fP.
+.TP
+.B "\-h"
+Print usage.
+.TP
+.BI "\-i " "option"
+Select increase method for ratings.  Default \fIoption\fP is
+\fBconservative\fP.
+.PP
+.RS
+.B "c|conservative"
+Increase less as the current rating gets closer to the maximum score.
+.TP
+.B "a|accelerated"
+Increase more as the current rating gets closer to the middle rating.
+.TP
+.B "i|inverse"
+Increase less as the current rating gets closer to the middle rating.
+.RE
+.TP
+.B "\-j"
+Disable repeat checks.
+.TP
+.B "\-k"
+Disable repeat updates when songs are skipped.
+.TP
+.B "\-l"
+Disable rating updates when songs are skipped.
+.TP
+.BI "\-m " "option"
+Select decrease method for ratings.  Default \fIoption\fP is
+\fBconservative\fP.
+.PP
+.RS
+.B "c|conservative"
+Decrease less as the current rating gets closer to the minimum score.
+.TP
+.B "a|accelerated"
+Decrease more as the current rating gets closer to the middle rating.
+.TP
+.B "i|inverse"
+Decrease less as the current rating gets closer to the middle rating.
+.RE
+.TP
+.B "\-n"
+Disable ogg and mp3 players.  Useful for testing or batch rating with
+\fB\-Ve\fp \fIpattern\fP.
+.TP
+.BI "\-o " "value"
+Only used with \fB\-w middle\fP.  Use \fIvalue\fP as the end multiplier
+instead of the default.
+.TP
+.BI "\-p " "file"
+Use \fIfile\fP as playlist instead of the default.  Only useful with
+\fB\-x generate\fP, \fB\-x merge\fP and \fB\-x weed\fP.
+.TP
+.B "\-q"
+Minimize vux-generated output.
+.TP
+.BI "\-r " "value"
+Only used with \fB\-w middle\fP.  Use \fIvalue\fP as the middle
+multiplier instead of the default.
+.TP
+.BI "\-s " "file"
+Use \fIfile\fP as the scorelist instead of the default.
+.TP
+.BI "\-t " "value"
+Add \fIvalue\fP to the percent chance to play songs that are above or
+equal to the mean.  When used with \fB\-W thresh\fP, add \fIvalue\fP to
+threshold.  Value may be positive or negative and may use vux variables
+and formulas.  For example, all of the following are valid: \fBvux \-t
+10\fP ; \fBvux \-t \-std_dev\fP ; \fBvux \-t '\-0.5*std_dev'\fP.
+.TP
+.B "\-u"
+Check for repeat before checking rating.  Otherwise, ratings are checked
+first.
+.TP
+.BI "\-v"
+Show version and exit.
+.TP
+.BI "\-w " "option"
+Select rating method.  Default \fIoption\fP is \fBbell\fP.
+.PP
+.RS
+.B "b|bell"
+Use the bell curve.
+.TP
+.B "t|thresh"
+Use thresholds.
+.TP
+.B "m|middle"
+Use distance from fixed middle.
+.RE
+.TP
+.BI "\-x " "option"
+Select action for vux to perform.  Default \fIoption\fP is \fBplay\fP.
+.PP
+.RS
+.B "p|play"
+Play music.
+.TP
+.B "g|generate"
+Generate a new scorelist from playlist and exit.  Playlist must have one
+pathname (the full path to each file, including the filename) per line.
+Spaces, symbols, etc. in the pathname are allowed as the
+line will be double-quoted in the scorelist.  Each song will be given
+the default rating and scorelist will be backed-up and overwritten.
+This is only useful when generating a new scorelist.
+.TP
+.B "m|merge"
+Similar to \fBgenerate\fP, but keeps the existing scores, adding only
+new songs from playlist and giving them the default rating.
+.TP
+.B "w|weed"
+Remove all songs from the scorelist and agelist/countlist that do not
+appear in the playlist and exit.  \fB\-W\fP determines whether agelist or
+countlist is updated.  \fB\-d\fP and \fB\-b\fP disable pruning from the
+scorelist and agelist/countlist respectively.
+.TP
+.B "r|ratings"
+Show rating count, mean, standard deviation and other statistics,
+depending on the rating method used, then exit.
+.TP
+.B "f|force"
+Force ratings of songs selected with \fB\-e\fP \fIpattern\fP.  Without
+additional arguments, this option will cause all ratings of selected
+songs to be increased once using the current increase method.  With
+\fB\-F\fP, all ratings of selected songs will be decreased once using
+the current decrease method.  With \fB\-f\fP \fIvalue\fP, all ratings of
+selected songs will be replaced with \fIvalue\fP.
+.RE
+.TP
+.BI "\-y " "file"
+Use \fIfile\fP as the missing file log instead of the default.
+.TP
+.BI "\-z " "file"
+Only used with \fB\-W count\fP.  Use \fIfile\fP as the countlist instead
+of the default.
+.TP
+.B "\-A"
+Only used with \fB\-W age\fP.  Disable saving the agelist.  Otherwise,
+\fBvux\fP saves the agelist after every 30 songs played and on SIGINT.
+.TP
+.BI "\-B " "value"
+Only used with \fB\-w middle\fP.  Use bend factor \fIvalue\fP instead of
+the default.
+.TP
+.BI "\-C " "value"
+Only used with \fB\-w thresh\fP.  Use random reprieve factor \fIvalue\fP
+instead of the default.
+.TP
+.BI "\-D " "value"
+Use decrease factor \fIvalue\fP instead of the default.
+.TP
+.B "\-F"
+Behave as if songs were skipped when using \fB\-n\fP or \fB\-x force\fP.
+The default is to behave as if songs were played completely.
+.TP
+.BI "\-G " "value"
+Only used with \fB\-W age\fP.  Use \fIvalue\fP method to prevent runaway
+age checking in case many songs are below the minimum age.  When
+searching for a song to play, \fIvalue\fP represents the number of times
+an age check will fail before \fBvux\fP will ignore age.  Also valid
+are: \fItotal\fP or \fIt\fP for total number of songs, \fIsqrt\fP or
+\fIs\fP for square root of the total number of songs, or \fI\-1\fP for no
+method.
+.TP
+.BI "\-I " "value"
+Use increase factor \fIvalue\fP instead of the default.
+.TP
+.BI "\-M " "value"
+Only used with \fB\-W age\fP.  Use minimum age \fIvalue\fP instead of the
+default.  A valid value is a number followed by \fBd\fP for days,
+\fBh\fP for hours, \fBm\fP for minutes or \fBs\fP for seconds.  For
+example, \fB7d\fP, \fB3h\fP, \fB20m\fP, and \fB45s\fP are valid.  The
+status line will display the time since plast played in the time units
+specified here.
+.TP
+.BI "\-N " "value"
+Only used with \fB\-W count\fP.  Use count \fIvalue\fP instead of the
+default.  This is the number of times a song will fail to be chosen
+after being chosen successfully.
+.TP
+.BI "\-O " "device"
+Use \fIdevice\fP as the sound device checked before running a player.
+Use \fB/dev/null\fP as the device to disable checking.  Default is
+\fB/dev/dsp\fP.
+.TP
+.B "\-P"
+Only useful with \fB\-W age\fP.  Songs with no age value will be played
+without a rating check.  This option implies \fB\-u\fP.
+.TP
+.B "\-R"
+Show rating count, mean, standard deviation and other statistics,
+depending on the rating method used.  This is the same as \fB\-x
+ratings\fP, but is displayed after any other processing.
+.TP
+.B "\-S"
+Disable saving the scorelist.  Otherwise, \fBvux\fP saves the scorelist
+after every 30 songs played and on SIGINT.
+.TP
+.BI "\-T " "value"
+Subtract \fIvalue\fP from percent chance to play songs that are below
+the mean.  With \fB\-w thresh\fP, add \fIvalue\fP to reprieve threshold.
+See \fB\-t\fP.
+.TP
+.BI "\-U " "value"
+Use default rating \fIvalue\fP instead of the default.  This is only
+useful with \fB\-x generate\fP and \fB\-x merge\fP.
+.TP
+.B "\-V"
+Add a "\-v" to cp and rm.
+.TP
+.BI "\-W " "option"
+Select repeat-checking method.  Default \fIoption\fP is \fBage\fP.
+.PP
+.RS
+.B "a|age"
+Test repeats by age.
+.TP
+.B "c|count"
+Test repeats by counting down.
+.RE
+.TP
+.BI "\-X " "value"
+Use maximum score \fIvalue\fP instead of the default.
+.TP
+.B "\-Y"
+Disable using the missing log.  Otherwise, songs that are not readable
+(unless beginning with http) will be appended to the missing log.
+.TP
+.B "\-Z"
+Only used with \fB\-W count\fP.  Disable saving the countlist.
+Otherwise, \fBvux\fP saves the countlist after every 30 songs played and
+on SIGINT.
+.SH CONTROL
+Control of \fBvux\fP is handled by signals, usually through shell or
+window manager key bindings such as:
+.PP
+  kill \-HUP `cat ~/.vux/vux.pid`
+.br
+  kill \-INT `cat ~/.vux/vux.pid`
+.PP
+For a wider range of control, the \fBvuxctl\fP program is available.
+See \fBvuxctl(1)\fP for details.
+.SS Signals
+.TP
+.B HUP vux
+skip current song and lower its rating
+.TP
+.B INT vux
+exit vux, end current song without changing its rating and save current
+scorelist
+.TP
+.B INT player
+skip current song but increase the rating (only works when player exits
+0 after receiving \fBSIGINT\fP \(em defaults for player are ogg123 and
+mpg321, which do)
+.SH DISPLAY
+When playing songs, \fBvux\fP displays the following:
+.TP
+.B decision line
+While vux is searching for a song to play at random, the following
+characters are printed:
+.TP
+.B x
+Only used with \fB\-w thresh\fP.  Chosen song was below the reprieve
+threshold.
+.TP
+.B .
+Chosen song failed its percent chance to be played.  With \fB\-w
+thresh\fP, chosen song was below the threshold, above the reprieve
+threshold and failed the random reprieve chance.
+.TP
+.B !
+Only used with \fB\-w thresh\fP.  Chosen song was below the threshold,
+above the reprieve threshold and passed the random reprieve chance.
+This song will be played unless the \fB!\fP is followed by a \fB:\fP.
+.TP
+.B +
+Chosen song succeeded in its percent chance.  With \fB\-w thresh\fP,
+chosen song was above the threshold.  This song will be played unless
+the \fB+\fP is followed by a \fB:\fP.
+.TP
+.B :
+Chosen song failed the repeat test.
+.TP
+.B ~
+Only used with \fB\-W age\fP.  Chosen song did not meet the minimum age,
+but the age bypass was reached and the song will be played anyway.
+.TP
+.B \-
+Only used with \fB\-P\fP.  Chosen song has no age value, the rating
+check will be skipped and the song will be played.
+.TP
+.B status line with \-w bell and \-W age
+current rating/percent chance/mean/standard deviation/age
+.TP
+.B status line with \-w thresh and \-W age
+current rating/threshold/mean/reprieve threshold/age
+.TP
+.B status line with \-w bell and \-W count
+current rating/percent chance/mean/standard deviation
+.TP
+.B status line with \-w thresh and \-W count
+current rating/threshold/mean/reprieve threshold
+.TP
+.B path to song file
+Path to song file up to the last forward slash.
+.TP
+.B filename
+Filename of song.
+.TP
+.B player output
+Normal player output.
+.TP
+.B new rating
+If rating updates are enabled, the new rating is displayed after the
+song ends.
+.TP
+Output from \fBvuxctl\fP commands are displayed as they occur.
+.SH MECHANICS
+\fBvux\fP uses simple algorithms to decide what song to play and to
+determine how much to change the rating.  Two things decide what songs
+will be played: the rating method and the repeat-avoidance method.  By
+default, \fBvux\fP uses the bell curve rating method and the age
+repeat-avoidance method.
+.SS Choosing a Song by Rating with \-w bell
+Upon choosing a song at random, \fBvux\fP calculates the mean and
+standard deviation for all ratings in the scorelist.  \fBvux\fP then
+applies a simplified bell curve model to the song's rating, to determine
+its percent chance of playing.  As the rating approaches +3 standard
+deviations from the mean, the chance of playing approaches 100%.  As the
+rating approaches \-3 standard deviations from the mean, the chance of
+playing aproaches 0%.  If the song fails its percent chance, the song is
+not played and another is picked at random and the process repeats.
+.SS Choosing a Song by Rating with \-w thresh
+\fBvux\fP uses 2 floating thresholds, the \fIthreshold\fP and the \fIreprieve
+threshold\fP:
+.PP
+         threshold = ( mean + standard deviation )
+.br
+reprieve threshold = ( mean \- standard deviation )
+.PP
+These values are calculated before choosing a song and divide the
+scorelist into three sections:
+.TP
+.B rating >= threshold
+Always play if picked at random.
+.TP
+.B rating < threshold and >= reprieve threshold
+1 in 10 (default) chance of playing if picked at random.
+.TP
+.B rating < reprieve threshold
+Never play if picked at random.
+.PP
+If the song does not qualify to be played, another song is picked at
+random and the process repeats.
+.SS Choosing a Song by Rating with \-w middle
+This is the simplest rating method.  Rating probabilities are determined
+by these variables (defaults shown):
+.PP
+      max_score=100
+.br
+      min_score=0
+.br
+      bend_factor=10
+.br
+      end_mult=1.5
+.br
+      middle_mult=1.1
+.br
+.PP
+\fBvux\fP takes the song's rating and uses that as its probability of
+playing (if \fBmax_score\fP and \fBmin_score\fP are not 100 and 0
+respectively, \fBvux\fP first extrapolates it into a 0-100 scale.)  This
+probability is modifed by multiplying it either by \fBend_mult\fP or
+\fBmiddle_mult\fP.  \fBmiddle_mult\fP is used for ratings that are
+between middle rating + \fBbend_factor\fP and middle rating -
+\fBbend_factor\fP.
+.SS Avoiding repeats with \-W age
+After a song is played, \fBvux\fP associates a timestamp with the song.
+When the song is chosen again, the timestamp is subtracted from the
+current time and compared to \fBminimum age\fP.  If the result is not
+greater that \fBminimum age\fP, the song is not played.
+.SS Avoiding repeats with \-W count
+After a song is played, \fBvux\fP associates a number with the song.
+This number is set with \fB\-N\fP and defaults to 10.  When the song is
+chosen again, the number is decremented and the song is not played.
+Once the number reaches 0, the song will be available to play again.
+.SS Changing Ratings
+Rating changes are controlled by these variables (defaults shown):
+.PP
+      max_score=100
+.br
+      min_score=0
+.br
+decrease_factor=10
+.br
+increase_factor=10
+.PP
+When a song is skipped, its rating changes according to this formula:
+.PP
+.B decrease = integer of(current_rating / \- decrease_factor)
+.PP
+With \fB\-m accelerated\fP, the following formula is used instead:
+.PP
+.B x = current_rating \- min_score
+.br
+.B y = max_score \- current_rating
+.br
+.B decrease = integer of(maximum of(1,(minimum of(x,y)/2)) * \-1
+.PP
+With \fB\-m inverse\fP, the following formula is used instead:
+.PP
+.B x = max_score \- min_score
+.br
+.B y = absolute value of ( current_rating \- x )
+.br
+.B decrease = integer of( y / decrease_factor ) \- 1 ) * \-1
+.PP
+When a song is played all the way through (or the player is sent a
+SIGINT), its rating changes according to this formula:
+.PP
+.B increase = integer of((max_score \- current_rating) / increase_factor)
+.PP
+With \fB\-m accelerated\fP, the following formula is used instead:
+.PP
+.B x = current_rating \- min_score
+.br
+.B y = max_score \- current_rating
+.br
+.B increase = integer of(maximum of(1,(minimum of(x,y)/2))
+.PP
+With \fB\-m inverse\fP, the following formula is used instead:
+.PP
+.B x = max_score \- min_score
+.br
+.B y = absolute value of ( current_rating \- x )
+.br
+.B increase = integer of( y / increase_factor ) + 1 )
+.PP
+.SH DIAGNOSTICS
+\fBvux\fP will exit 0 if there are no errors.  Otherwise, the following
+exit codes are used:
+.TP
+.B 1
+Usage error.
+.TP
+.B 2
+Unable to create vux working directory.
+.TP
+.B 3
+Scorelist lockfile already exists.
+.TP
+.B 4
+Unable to load scorelist.
+.TP
+.B 5
+No matching songs found with \fB\-e\fP.
+.TP
+.B 6
+Unable to open socket.
+.SH EXAMPLES
+.TP
+.B vux \-x generate
+Generate a new scorelist from $HOME/.vux/playlist and exit.
+.TP
+.B vux \-x ratings
+Show song ratings and exit.
+.TP
+.B vux \-x merge \-RU 60 \-p $HOME/.vux/newsongs
+Merge $HOME/.vux/newsongs with $HOME/.vux/scorelist, adding new songs
+with a rating of 60, show ratings after merging and exit.
+.TP
+.B vux \-cdS
+Play songs, but do not choose songs based on rating, update ratings or
+save the scorelist.
+.TP
+.B vux \-jbA
+Play songs, but do not avoid repeats based on age, update ages or save
+the agelist.
+.TP
+.B vux \-W count \-jbC
+Play songs, but do not avoid repeats based on count, update counts or
+save the countlist.
+.TP
+.B vux \-M 4d \-G \-1
+Do not repeat songs for 4 days, display ages in days and never bypass
+age checking.
+.TP
+.B vux \-W count \-N 20
+Do not repeat songs for 20 attempts.
+.TP
+.B vux \-k
+Do not update age on skipped songs.
+.TP
+.B vux \-t 10 \-T 20
+Add 10% to the percent chance to play songs above the mean and subtract
+20% from the percent chance to play songs below the mean.
+.TP
+.B vux \-w thresh \-t 10 \-T \-20
+Use the threshold rating method, add 10 to threshold and subtract 20
+from reprieve threshold.
+.TP
+.B vux \-w thresh \-T std_dev
+Use threshold rating method, add current standard deviation value of all
+ratings to reprieve threshold, limiting song choice to mean and above.
+.TP
+.B vux \-dbnSAV
+Do not change ratings or ages, do not play music and do not save
+scorelist or agelist.  This will show what vux would do without
+actually playing anything.
+.TP
+.B vux \-e '*Artist/Album*'
+Only consider songs matching *Artist/Album*.
+.TP
+.B vux \-e '*Artist/(Album1|Album2)*'
+Only consider songs matching *Artist/Album1* or *Artist/Album2*.
+.TP
+.B vux \-cje '(#i)*whale*'
+Play songs with whale in the pathname, ignoring case, rating and age.
+.TP
+.B vux \-cjnVFe '(#i)*purse*'
+Choose songs with purse in the pathname, ignoring case, rating and age.
+Do not actually play the songs, but display the song name and lower its
+rating.  This will continue choosing songs from the selection and
+lowering ratings indefinitely.
+.TP
+.B vux \-x force \-e '*Artist*'
+Increase the rating of each song matching *Artist* once, using the
+conservative increase method, then exit.
+.TP
+.B vux \-x force \-e '*Artist*' \-F
+Decrease the rating of each song matching *Artist* once, using the
+conservative decrease method, then exit.
+.TP
+.B vux \-x force \-e '*Artist*' \-f 100
+Set the rating of each song matching *Artist* to 100, then exit.
+.SH BUGS
+Use the Debian Bug Tracking System for reporting bugs and making
+suggestions.
+.SH SEE ALSO
+.B zshexpn(1), vuxctl(1)
+.SH FILES
+.TP
+/etc/vuxrc
+system configuration file
+.TP
+$HOME/.vux/vuxrc
+user configuration file
+.TP
+$HOME/.vux/playlist
+default playlist to generate, merge or weed scorefiles from \(em this is
+never modified by vux
+.TP
+$HOME/.vux/scorelist
+default scorelist
+.TP
+$HOME/.vux/agelist
+default agelist
+.TP
+$HOME/.vux/countlist
+default countlist
+.TP
+$HOME/.vux/missing
+default missing file log
+.TP
+$HOME/.vux/*.bak
+default backup file; made before saving
+.TP
+$HOME/.vux/*.lock
+default lockfile preventing a file save or load while saving
+.TP
+$HOME/.vux/vux.pid
+file containing PID of any vux process using \-x play
+.TP
+$HOME/.vux/ctl
+vux control socket
+.SH AUTHOR
+This manual page was written by Brian Nelson <bnelson@bloodclot.net>,
+for the Debian GNU/Linux system (but may be used by others).

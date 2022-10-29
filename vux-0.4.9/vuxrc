@@ -1,0 +1,156 @@
+# Vacillating Utilitarian eXtemporizer configuration file
+# this file is sourced by vux; edit with caution
+#
+# see vux(1) for details
+
+# GLOBAL OPTIONS
+# user directory for vux configuration files and lists
+vux_dir="$HOME/.vux"
+# system configuration file
+system_vuxrc="/etc/vuxrc"
+# user configuration file - copied from $system_vuxrc if not present
+vuxrc="$vux_dir/vuxrc"
+# command line ogg player
+ogg_player="ogg123"
+ogg_player_options=""
+# command line mp3 player
+mp3_player="mpg321"
+mp3_player_options="-d oss"
+# minimum rating
+min_score=0
+# number of songs played before auto-saving scorelist
+save_interval=30
+# pid file for determining playing vux instance
+vux_pid="$vux_dir/vux.pid"
+# socket file used by vuxctl
+vux_sock="$vux_dir/ctl"
+# number of previous/next songs to keep in history
+history_size=10
+# initial rating multiplier
+delta_mult=1
+
+# COMMAND LINE OPTIONS
+# -p  default playlist
+playlist="$vux_dir/playlist"
+# -s  default scorelist
+scorelist="$vux_dir/scorelist"
+# -a  default agelist
+agelist="$vux_dir/agelist"
+# -z  default agelist
+countlist="$vux_dir/countlist"
+# log of missing files that vux attempted to play
+missing_log="$vux_dir/missing"
+# -O  default sound device checked before running player
+sound_device="/dev/dsp"
+# -U  default score used with -x g and -x m
+default_score=50
+# -N  default count used with -W c
+default_count=10
+# -t  default percent chance modifier for songs above or equal to the
+#     mean, or default threshold modifier when using -B
+above_mean_modifier=0
+# -T  default percent chance modifier for songs below the mean, or
+#     default reprieve threshold modifier when using -B
+below_mean_modifier=0
+# -X  default maximum rating - limits the rating value but is also used
+#     in determining the value of rating increases.
+max_score=100
+# -I  default increase factor - used in determining the value of rating
+#     increases.
+increase_factor=10
+# -D  default decrease factor - used in determining the value of rating
+#     decreases.
+decrease_factor=10
+# -C  only used with -w t.  default random reprieve factor - the random
+#     chance that songs picked below threshold but above reprieve
+#     threshold will play (a 1 in N chance.)  lower this value to play
+#     lower-rated songs more often.
+random_reprieve_factor=10
+# -M  time a song must age before it is repeated - <number>d|h|m|s.
+#     time since last played is displayed in the status line according
+#     to the time units specified here.
+minimum_age="1h"
+# -G  method to prevent runaway age checking if too many songs are below
+#     the minimum age - values represent the number of times an age
+#     check will fail before ignoring age.  valid values:
+#     total | t  - for total number of songs
+#     sqrt  | s  - for the square root of the total number of songs
+#     <n>        - any positive number
+#     -1         - disables age bypass
+age_bypass="sqrt"
+# -V  add a -v to cp and rm
+verbose_files=0
+# -c  disable rating checking
+check_ratings=1
+# -j  disable repeat checking
+check_repeats=1
+# -S  disable saving the scorelist
+save_scorelist=1
+# -A  disable saving the agelist
+save_agelist=1
+# -Z  disable saving the countlist
+save_countlist=1
+# -d  disable rating updates when songs are played completely
+update_rating_plays=1
+# -b  disable repeat updates when songs are played completely
+update_repeat_plays=1
+# -l  disable rating updates when songs are skipped
+update_rating_skips=1
+# -k  disable repeat updates when songs are skipped
+update_repeat_skips=1
+# -Y  disable keeping a running log of files that vux attempted to play,
+#     but were not readable.
+use_missing=1
+# -x  perform action:
+#     p|play      play songs
+#     g|generate  generate new scorelist from playlist
+#     m|merge     merge playlist into scorelist
+#     w|weed      prune playlist from scorelist and agelist/countlist
+#     r|ratings   show ratings
+vux_action=play
+# -w  rating method
+#     b|bell      use bell curve
+#     t|thresh    use thresholds
+#     m|middle    use distance from fixed middle
+rating_method=bell
+# -W  repeat method
+#     a|age       use agelist
+#     c|count     use countlist
+repeat_method=age
+# -R  display a rating count after processing
+#     stats_method=show_stats
+stats_method=:
+# -u  check age before rating
+#     test_order=test_repeat_first
+test_order=test_rating_first
+# -J  accelerate decreases
+#     decrease_method=accelerated_decrease
+#     decrease_method=inverse_decrease
+decrease_method=conservative_decrease
+# -K  accelerate increases
+#     increase_method=accelerated_increase
+#     increase_method=inverse_increase
+increase_method=conservative_increase
+# -n  disable the music players
+#     play_method=:
+play_method=play_song
+# -F  behave as if songs were skipped when using -n.  the default is to
+#     behave as if songs were played completely.
+noplay_skip=-1
+# -q  disable most vux-generated output
+#     print_method=:
+print_method=print
+# -P  force play on songs that have no age value.  this implies -u.
+force_new=0
+# -g  output -x ratings and -R in redirectable xgraph-friendly format
+#     ( 2 columns: rating and count )
+xgraph=0
+# -B  Only used with -w m.  Sets the distance from the middle to change
+#     the rating multiplier.
+bend_factor=10
+# -o  Only used with -w m.  Sets the rating multiplier for ratings
+#     between middle + bend_factor and middle - bend_factor.
+middle_mult=1.1
+# -r  Only used with -w m.  Sets the rating multiplier for ratings
+#     above middle + bend_factor and below middle - bend_factor.
+end_mult=1.5

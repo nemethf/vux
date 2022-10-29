@@ -1,0 +1,211 @@
+vux (0.4.9) unstable; urgency=low
+
+  * Changed interpreter from zsh-beta to zsh (closes: #279485)
+  * Added vuxctl after option for quitting after the current song ends.
+  * Added middle rating method.
+  * Added inverse decrease and increase methods.
+  * Added probablilities to -x r. 
+
+ -- Brian Nelson <bnelson@debian.org>  Thu,  4 Nov 2004 12:25:17 -0800
+
+vux (0.4.8) unstable; urgency=low
+
+  * Added removal of vux pid file in vuxctl clean. 
+
+ -- Brian Nelson <bnelson@debian.org>  Fri, 18 Jul 2003 18:59:04 -0700
+
+vux (0.4.7) unstable; urgency=low
+
+  * Fixed threshold typo. (closes: #201500) 
+
+ -- Brian Nelson <bnelson@debian.org>  Thu, 17 Jul 2003 10:53:18 -0700
+
+vux (0.4.6) unstable; urgency=low
+
+  * Removed erroneous stats counter.
+  * Added two-way communication with vuxctl, causing vuxctl to display
+    output.
+  * Changed behavior of vuxctl without arguments to display help.
+  * Added mechanism to vux to ignore commands after a vuxctl previous, next,
+    forward or replay until the player is respawned. (closes: #198576)
+  * Added vuxctl clean command to remove socket and lockfiles. 
+
+ -- Brian Nelson <bnelson@debian.org>  Tue,  8 Jul 2003 13:19:26 -0700
+
+vux (0.4.5) unstable; urgency=low
+
+  * Fixes standard deviation stats bug caused by previous fix.
+    (closes: #190444) 
+
+ -- Brian Nelson <bnelson@bloodclot.net>  Thu,  8 May 2003 22:10:06 -0400
+
+vux (0.4.4) unstable; urgency=low
+
+  * Fixes option word splitting. (closes: #188883)
+  * Adds -v to mpg321 by default. (closes: #190005)
+  * Writes pid after opening socket instead of before.
+  * Writes temporary save file according to default tempfile(1) locations
+    instead of the vux directory. (closes: #190245)
+  * Changes song file test from readable to regular file to prevent
+    directories from trying to be played. (closes: #190261)
+  * Fixes standard deviation stats bug. (closes: #190444)
+  * Adds check for $player_pid to prevent spurious error message. 
+
+ -- Brian Nelson <bnelson@bloodclot.net>  Wed,  7 May 2003 20:07:12 -0400
+
+vux (0.4.3) unstable; urgency=low
+
+  * Changes behavior of vuxctl double to affect non-vuxctl play and skip.
+  * Fixes LANG math bug by using alternate zsh syntax (closes: #183264)
+
+ -- Brian Nelson <bnelson@bloodclot.net>  Mon,  3 Mar 2003 14:32:32 -0500
+
+vux (0.4.2) unstable; urgency=low
+
+  * Fixes $vux_dir bug. (closes: #182479) 
+
+ -- Brian Nelson <bnelson@bloodclot.net>  Tue, 25 Feb 2003 15:33:14 -0500
+
+vux (0.4.1) unstable; urgency=low
+
+  * Adds ctl to list of files in man pages.
+  * Fixes vuxctl rating bug with multiple arguments. 
+
+ -- Brian Nelson <bnelson@bloodclot.net>  Mon, 24 Feb 2003 22:12:18 -0500
+
+vux (0.4.0) unstable; urgency=low
+
+  * Adds vuxctl command-line helper. (closes: #160600, #178223)
+  * Adds stats per degree of standard deviation. (closes: #178218)
+  * Adds song path and song name to output. 
+
+ -- Brian Nelson <bnelson@bloodclot.net>  Fri, 21 Feb 2003 00:55:59 -0500
+
+vux (0.3.6) unstable; urgency=low
+
+  * Adds -g for xgraph-friendly rating stats output.
+  * Fixes options splitting bug. (closes: #178518) 
+
+ -- Brian Nelson <bnelson@bloodclot.net>  Sun, 26 Jan 2003 17:10:34 -0500
+
+vux (0.3.5) unstable; urgency=low
+
+  * Adds -x force option to modify ratings. 
+
+ -- Brian Nelson <bnelson@bloodclot.net>  Wed, 15 Jan 2003 17:06:34 -0500
+
+vux (0.3.4) unstable; urgency=low
+
+  * Adds time units to display.
+  * Fixes equal to mean count in -x ratings.
+  * Adds -P to force play of new songs.
+  * Fixes -R with -x weed.
+  * Adds .vux/current_path and .vux/current_song. 
+
+ -- Brian Nelson <bnelson@bloodclot.net>  Sun,  5 Jan 2003 12:52:17 -0500
+
+vux (0.3.3) unstable; urgency=low
+
+  * Fixes missing log bug.
+
+ -- Brian Nelson <bnelson@bloodclot.net>  Mon, 28 Oct 2002 18:25:00 -0500
+
+vux (0.3.2) unstable; urgency=low
+
+  * Changes behavior of -J and -K.
+
+ -- Brian Nelson <bnelson@bloodclot.net>  Sun, 23 Oct 2002 14:06:00 -0400
+
+vux (0.3.1) unstable; urgency=low
+
+  * Makes man page utf-8 compliant.
+
+ -- Brian Nelson <bnelson@bloodclot.net>  Sun, 23 Oct 2002 14:06:00 -0400
+
+vux (0.3.0) unstable; urgency=low
+  
+  * Adds song pattern matching. (closes: #160832)
+  * Fixes agelist not present bug.
+  * General code cleanup.
+  * Consolidates -g, -m, -w and -r into -x.
+  * Adds countdown-based repeat detection option.
+  * Adds vux pid file.
+
+ -- Brian Nelson <bnelson@bloodclot.net>  Sun, 20 Oct 2002 12:16:00 -0400
+
+vux (0.2.2) unstable; urgency=low
+
+  * Fixes bell curve bug. (closes: #164808)
+  * Removes post-player sleep and adds sound device check.
+  * Adds -O sound device.
+  * Removes unreliable pkill option.
+  * Adds missing file log.
+  * Adds prune scorelist from playlist option.
+  * Adds rating change acceleration options.
+  * Removes -o and makes it implicit with -g, -m, -r and -w.
+  * Modifies -r and -R depending on rating method.
+  * General efficiency improvements and code cleanup.
+
+ -- Brian Nelson <bnelson@bloodclot.net>  Tue, 15 Oct 2002 20:38:00 -0400
+
+vux (0.2.1) unstable; urgency=low
+
+  * Changes default rating method to use a bell curve.
+  * Fixes .vuxrc check bug.
+  * Fixes unbalanced parens agelist bug.
+  * Fixes age checking with -n bug.
+
+ -- Brian Nelson <bnelson@bloodclot.net>  Wed,  9 Oct 2002 16:00:00 -0400
+
+vux (0.2.0) unstable; urgency=low
+
+  * Adds support for repeat detection based on time.
+  * Fixes rating change error on file not found error.
+  * General code cleanup.
+
+ -- Brian Nelson <bnelson@bloodclot.net>  Tue, 29 Sep 2002 09:27:00 -0400
+
+vux (0.1.5) unstable; urgency=low
+ 
+  * Adds pkill support.
+  * Fixes merge bug.
+ 
+ -- Brian Nelson <bnelson@bloodclot.net>  Tue, 23 Sep 2002 13:09:30 -0400
+
+vux (0.1.4) unstable; urgency=low
+
+  * Really fixes doublequoting bug.
+  * Adds total songs to -r.
+ 
+ -- Brian Nelson <bnelson@bloodclot.net>  Tue, 17 Sep 2002 12:12:30 -0400
+
+vux (0.1.3) unstable; urgency=low
+
+  * Fixes doublequotes in playlist bug.
+  * Stops player from running at nice 5.
+
+ -- Brian Nelson <bnelson@bloodclot.net>  Mon, 16 Sep 2002 14:01:30 -0400
+
+vux (0.1.2) unstable; urgency=low
+
+  * Fixes lack of scorefile error message. (closes: #160597)
+  * Adds -v description in manpage. (closes: #160606)
+  * Fixes song selection off-by-one error. (closes: #160833)
+  * Adds -t and -T examples in manpage. (closes: #160907)
+  * Adds BUGS section to manpage.
+
+ -- Brian Nelson <bnelson@bloodclot.net>  Sun, 15 Sep 2002 16:11:00 -0400
+
+vux (0.1.1) unstable; urgency=low
+
+  * Fixes tempfile and lockfile bugs.
+  * Adds threshold modifier arguments.
+
+ -- Brian Nelson <bnelson@bloodclot.net>  Fri,  6 Sep 2002 13:18:18 -0400
+
+vux (0.1.0) unstable; urgency=low
+
+  * Initial Release. (closes: #159892)
+
+ -- Brian Nelson <bnelson@bloodclot.net>  Fri,  6 Sep 2002 13:18:18 -0400
+

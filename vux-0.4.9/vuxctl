@@ -1,0 +1,58 @@
+#!/usr/bin/zsh
+
+system_vuxrc="/etc/vuxrc"
+vux_dir="$HOME/.vux"
+vuxrc="$vux_dir/vuxrc"
+vux_pid="$vux_dir/vux.pid"
+vux_sock="$vux_dir/ctl"
+ctl_exit=1
+args=$@
+
+[[ -r $system_vuxrc ]] && source $system_vuxrc
+[[ -r $vuxrc ]] && source $vuxrc
+
+[[ -z $args ]] && args=help
+
+if [[ -n ${args[(r)clean]} ]]
+then
+  rm $vux_sock >& /dev/null
+  rm $vux_pid >& /dev/null
+  rm $scorelist.lock >& /dev/null
+  rm $agelist.lock >& /dev/null
+  rm $countlist.lock >& /dev/null
+  ctl_exit=0
+elif [[ -n ${args[(r)start]} ]]
+then
+  if [[ -r $vux_pid ]]
+  then
+    print "ERROR: vux.pid already exists."
+    ctl_exit=2
+  else
+    vux -x play &
+  fi
+  ctl_exit=0
+elif [[ -r $vux_pid ]]
+then
+  zmodload zsh/net/socket
+  zsocket -d 9 $vux_sock
+  kill -HUP `cat $vux_pid`
+  print -u 9 $args
+  while { read -u 9 ctl_stat }
+  do
+    print $ctl_stat
+    case $ctl_stat in
+    ("vux: ok")
+      ctl_exit=0
+      break
+    ;;
+    ("vux: command failed")
+      ctl_exit=1
+      break
+    ;;
+    esac
+  done
+else
+  print "ERROR: no vux.pid file exists and no start command given."
+  ctl_exit=3
+fi
+exit $ctl_exit

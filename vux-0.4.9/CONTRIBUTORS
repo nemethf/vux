@@ -1,0 +1,10 @@
+----------------
+VUX CONTRIBUTORS
+----------------
+
+Vux is written and maintained by Brian Nelson <bnelson@debian.org>
+
+Clint Adams <schizo@debian.org>: original idea, -e idea, -JK ideas and
+zsh support.
+Adam Luter <luterac@bellsouth.net>: time-based and countdown-based
+repeat-detection and bell curve ideas.

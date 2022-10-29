@@ -1,0 +1,1316 @@
+#!/usr/bin/zsh
+#
+# Vacillating Utilitarian eXtemporizer
+# see vux(1) for details
+
+# global options
+prog_name="vux"
+prog_ver="0.4.9"
+vux_dir="$HOME/.vux"
+vuxrc="$vux_dir/vuxrc"
+system_vuxrc="/etc/vuxrc"
+ogg_player="ogg123"
+ogg_player_options=""
+mp3_player="mpg321"
+mp3_player_options="-d oss -v"
+min_score=0
+save_interval=30
+vux_pid="$vux_dir/vux.pid"
+vux_sock="$vux_dir/ctl"
+history_size=10
+delta_mult=1
+
+# command line options
+playlist="$vux_dir/playlist"
+scorelist="$vux_dir/scorelist"
+agelist="$vux_dir/agelist"
+countlist="$vux_dir/countlist"
+missing_log="$vux_dir/missing"
+sound_device="/dev/dsp"
+default_score=50
+default_count=10
+above_mean_modifier=0
+below_mean_modifier=0
+max_score=100
+increase_factor=10
+decrease_factor=10
+random_reprieve_factor=10
+minimum_age="1h"
+age_bypass="sqrt"
+verbose_files=0
+check_ratings=1
+check_repeats=1
+save_scorelist=1
+save_agelist=1
+save_countlist=1
+update_rating_plays=1
+update_repeat_plays=1
+update_rating_skips=1
+update_repeat_skips=1
+use_missing=1
+vux_action=play
+rating_method=bell
+repeat_method=age
+stats_method=:
+test_order=test_rating_first
+decrease_method=conservative_decrease
+increase_method=conservative_increase
+play_method=play_song
+noplay_skip=-1
+print_method=print
+force_new=0
+xgraph=0
+bend_factor=10
+middle_mult=1.1
+end_mult=1.5
+
+zmodload zsh/mathfunc
+zmodload zsh/net/socket
+setopt extendedglob
+unsetopt bgnice
+typeset -A rating
+typeset -A selection_rating
+typeset -A age
+typeset -A count
+typeset -F std_dev
+typeset -F std_dev_counter
+typeset -F mean_counter
+typeset -F 4 mean
+typeset -F 4 threshold
+typeset -F 4 reprieve_threshold
+typeset -F 2 lower_sigma
+typeset -F 2 upper_sigma
+typeset -F 4 lower_area
+typeset -F 4 upper_area
+typeset -F 4 current_sigma
+typeset -F 4 probability
+typeset -F 4 area_sigma
+typeset -F 4 ratio_sigma
+typeset -F 4 float_random
+typeset -F 4 current_chance
+typeset -F 2 percent_prob
+typeset -F 4 std_dev_show
+typeset -U previous_songs
+typeset -U next_songs
+bell=(0.0000 0.0987 0.1915 0.2734 0.3413 0.3944 0.4332 0.4599 0.4772 0.4878 0.4938 0.4970 0.4987 0.4994 0.4997 0.4999 0.5000)
+last_song=0
+
+show_stats() {
+  high_song_counter=0
+  middle_song_counter=0
+  low_song_counter=0
+  plus_4_counter=0
+  plus_3_counter=0
+  plus_2_counter=0
+  plus_1_counter=0
+  minus_4_counter=0
+  minus_3_counter=0
+  minus_2_counter=0
+  minus_1_counter=0
+  typeset -A rating_counter
+  for i in $rating
+  do
+    rating_counter[$i]=$(( rating_counter[$i] + 1 ))
+  done
+  compute_stats
+  local -F plus_4
+  local -F plus_3
+  local -F plus_2
+  local -F plus_1
+  local -F minus_4
+  local -F minus_3
+  local -F minus_2
+  local -F minus_1
+  (( plus_4 = mean + std_dev * 4 ))
+  (( plus_3 = mean + std_dev * 3 ))
+  (( plus_2 = mean + std_dev * 2 ))
+  (( plus_1 = mean + std_dev * 1 ))
+  (( minus_4 = mean - std_dev * 4 ))
+  (( minus_3 = mean - std_dev * 3 ))
+  (( minus_2 = mean - std_dev * 2 ))
+  (( minus_1 = mean - std_dev * 1 ))
+  int_max=$(( int(max_score) ))
+  int_min=$(( int(min_score) ))
+  $stats_print "probability : score : count"
+  for i in {$int_max..$int_min}
+  do
+    if [[ -n ${(k)rating_counter[$i]} ]]
+    then
+      $rating_method $i
+      percent_prob=$(( probability * 100 ))
+      if [[ $percent_prob -eq 100 ]]
+      then
+        spacer="    "
+      elif [[ $percent_prob -ge 10 ]]
+      then
+        spacer="     "
+      else
+        spacer="      "
+      fi
+      $stats_print $spacer$percent_prob"% :    "$i" : "$rating_counter[$i]
+      $xgraph_print $i $rating_counter[$i]
+    fi
+  done
+  for i in ${(k)rating_counter}
+  do
+    if [[ $i -gt $mean ]]
+    then
+      high_song_counter=$(( high_song_counter + rating_counter[$i] ))
+      if [[ $i -gt $plus_3 ]]
+      then
+        plus_4_counter=$(( plus_4_counter + rating_counter[$i] ))
+      elif [[ $i -gt $plus_2 ]]
+      then
+        plus_3_counter=$(( plus_3_counter + rating_counter[$i] ))
+      elif [[ $i -gt $plus_1 ]]
+      then
+        plus_2_counter=$(( plus_2_counter + rating_counter[$i] ))
+      else
+        plus_1_counter=$(( plus_1_counter + rating_counter[$i] ))
+      fi
+    elif [[ $i -eq $mean ]]
+    then
+      middle_song_counter=$(( middle_song_counter + rating_counter[$i] ))
+    else [[ $i -lt $mean ]]
+      low_song_counter=$(( low_song_counter + rating_counter[$i] ))
+      if [[ $i -lt $minus_3 ]]
+      then
+        minus_4_counter=$(( minus_4_counter + rating_counter[$i] ))
+      elif [[ $i -lt $minus_2 ]]
+      then
+        minus_3_counter=$(( minus_3_counter + rating_counter[$i] ))
+      elif [[ $i -lt $minus_1 ]]
+      then
+        minus_2_counter=$(( minus_2_counter + rating_counter[$i] ))
+      else
+        minus_1_counter=$(( minus_1_counter + rating_counter[$i] ))
+      fi
+    fi
+  done
+  $stats_print
+  $stats_print "                    mean: "$mean
+  $stats_print "      standard_deviation: "$std_dev_show
+  $stats_print
+  $stats_print "                   total: "$#rating
+  $stats_print "              above mean: "$high_song_counter
+  $stats_print "           equal to mean: "$middle_song_counter
+  $stats_print "              below mean: "$low_song_counter
+  $stats_print
+  $stats_print "within x standard deviations of the mean:"
+  $stats_print "              +4 or more: "$plus_4_counter
+  $stats_print "                      +3: "$plus_3_counter
+  $stats_print "                      +2: "$plus_2_counter
+  $stats_print "                      +1: "$plus_1_counter
+  $stats_print "                       0: "$middle_song_counter
+  $stats_print "                      -1: "$minus_1_counter
+  $stats_print "                      -2: "$minus_2_counter
+  $stats_print "                      -3: "$minus_3_counter
+  $stats_print "              -4 or less: "$minus_4_counter
+}
+
+prune_scorelist() {
+  if [[ -r $playlist ]]
+  then
+    typeset -A temp_rating
+    $print_method -n Pruning $scorelist from $playlist...
+    for i in ${(f)"$(cat $playlist)"}
+    do
+      if [[ -n $rating[${(qqq)i}] ]]
+      then
+        temp_rating[${(qqq)i}]=$rating[${(qqq)i}]
+      fi
+    done
+    $print_method "done."
+    $print_method old song count : $#rating
+    $print_method new song count : $#temp_rating
+    : ${(AA)rating::=${(kv)temp_rating}}
+    $write_scorelist_method "$scorelist" "rating"
+    case $repeat_play in
+    (update_age)
+      typeset -A temp_age
+      $print_method -n Pruning $agelist from $playlist...
+      for i in ${(f)"$(cat $playlist)"}
+      do
+        if [[ -n $age[${(qqq)i}] ]]
+        then
+          temp_age[${(qqq)i}]=$age[${(qqq)i}]
+        fi
+      done
+      $print_method "done."
+      $print_method old song count : $#age
+      $print_method new song count : $#temp_age
+      : ${(AA)age::=${(kv)temp_age}}
+      $write_agelist_method "$agelist" "age"
+    ;;
+    (update_count)
+      typeset -A temp_count
+      $print_method -n Pruning $countlist from $playlist...
+      for i in ${(f)"$(cat $playlist)"}
+      do
+        if [[ -n $count[${(qqq)i}] ]]
+        then
+          temp_count[${(qqq)i}]=$count[${(qqq)i}]
+        fi
+      done
+      $print_method "done."
+      $print_method old song count : $#count
+      $print_method new song count : $#temp_count
+      : ${(AA)count::=${(kv)temp_count}}
+      $write_countlist_method "$countlist" "count"
+    ;;
+    esac
+  else
+    print ERROR: $playlist is not readable.
+  fi
+  $stats_method
+}
+
+merge_playlists() {
+  new_songs=0
+  skipped_songs=0
+  $print_method Merging $playlist with $scorelist ...
+  for i in ${(f)"$(cat $playlist)"}
+  do
+    if [[ -n $rating[${(qqq)i}] ]]
+    then
+      (( skipped_songs++ ))
+    else
+      rating[${(qqq)i}]=$default_score
+      (( new_songs++ ))
+    fi
+  done
+  $print_method "skipped songs: "$skipped_songs
+  $print_method "new songs:     "$new_songs
+  $print_method "total:         "$(( skipped_songs + new_songs ))
+  $write_scorelist_method "$scorelist" "rating"
+  $stats_method
+}
+
+generate_new_scorelist() {
+  for i in ${(f)"$(cat $playlist)"}; do rating[${(qqq)i}]=$default_score ; done
+  $write_scorelist_method "$scorelist" "rating"
+  $stats_method
+}
+
+save_file() {
+  lockfile-create --retry 1 $1 || { print Aborting save. ; return }
+  $print_method "Saving $1 ..."
+  temp_file=`tempfile`
+  lockfile-touch $1 &
+  lock_pid=$!
+  case $2 in
+    ("rating")
+      for i in ${(k)rating}
+      do
+        print ${(q)${(qqq)${(Q)i}}} $rating[$i] >> $temp_file
+      done
+    ;;
+    ("age")
+      for i in ${(k)age}
+      do
+        print ${(q)${(qqq)${(Q)i}}} $age[$i] >> $temp_file
+      done
+    ;;
+    ("count")
+      for i in ${(k)count}
+      do
+        print ${(q)${(qqq)${(Q)i}}} $count[$i] >> $temp_file
+      done
+    ;;
+    (*)
+      print "VUX: internal error.  Unknown argument: $2"
+    ;;
+  esac
+  [[ -e $1 ]] && cp $verbose_arg $1 $1.bak
+  cp $verbose_arg $temp_file $1
+  rm $verbose_arg $temp_file
+  kill -9 $lock_pid
+  lockfile-remove $1
+  $print_method 'done.'
+}
+
+read_file() {
+  $print_method -n "Reading $1 ..."
+  lockfile-create --retry 1 $1 || { print Aborting load. ; exit 3 }
+  lockfile-touch $1 &
+  lock_pid=$!
+  case $2 in
+    ("rating") : ${(AA)rating:=${(zf)"$(<$1)"}} ;;
+    ("age") : ${(AA)age:=${(zf)"$(<$1)"}} ;;
+    ("count") : ${(AA)count:=${(zf)"$(<$1)"}} ;;
+  esac
+  kill -9 $lock_pid
+  lockfile-remove $1
+  $print_method 'done.'
+}
+
+compute_stats() {
+  mean_counter=0
+  std_dev_counter=0
+  for i in $rating
+  do
+    mean_counter=$(( mean_counter + i ))
+  done
+  (( mean = mean_counter / $#rating ))
+  for i in $rating
+  do
+    (( std_dev_counter = std_dev_counter + ( ( i - mean ) ** 2 ) ))
+  done
+  (( std_dev = sqrt( (( std_dev_counter / $#rating )) ) ))
+  (( std_dev_show = std_dev ))
+  (( threshold = std_dev + mean + above_mean_modifier ))
+  (( reprieve_threshold = mean - std_dev + below_mean_modifier ))
+}
+
+check_age() {
+  aged_song=0
+  new_song=0
+  current_seconds=`print -P %D{%s}`
+  if [[ ! -n $age[$current_pick] ]]
+  then
+    current_age=$current_seconds
+    new_song=1
+    [[ $force_new == 1 ]] && $print_method -n "\-"
+  else
+    pre_age=$age[$current_pick]
+    current_age=$(( current_seconds - pre_age ))
+  fi
+  if [[ $current_age -ge $minimum_age ]]
+  then
+    aged_song=1
+  elif [[ $age_bypass_count -eq 0 ]]
+  then
+    $print_method -n "~"
+    aged_song=1
+  else
+    (( age_bypass_count-- ))
+    $print_method -n ":"
+  fi
+}
+
+check_count() {
+  aged_song=0
+  if [[ ! -n $count[$current_pick] ]]
+  then
+    aged_song=1
+  else
+    pre_count=$count[$current_pick]
+    count[$current_pick]=$(( pre_count - 1 ))
+    if [[ $count[$current_pick] -le 0 ]] { unset "count[$current_pick]" }
+    $print_method -n ":"
+  fi
+}
+
+check_middle() {
+  good_song=0
+  current_chance=$(( RANDOM % 10000 ))
+  (( float_random = current_chance /10000 ))
+  total=$(( max_score - min_score ))
+  middle=$(( total / 2 ))
+  raw_rating=$1
+  pre_rating=$(( raw_rating * 100 / total ))
+  if [[ $raw_rating -eq $middle ]]
+  then
+    probability=$(( raw_rating * 100 / total ))
+  elif [[ $raw_rating -gt $middle ]]
+  then
+    bend=$(( middle + bend_factor ))
+    if [[ $raw_rating -lt $bend ]]
+    then
+      probability=$(( pre_rating * middle_mult ))
+    else
+      probability=$(( pre_rating * end_mult ))
+    fi
+    probability=$(( probability + above_mean_modifier ))
+  else
+    bend=$(( middle - bend_factor ))
+    if [[ $raw_rating -gt $bend ]]
+    then
+      probability=$(( pre_rating / middle_mult ))
+    else
+      probability=$(( pre_rating / end_mult ))
+    fi
+    probability=$(( probability - below_mean_modifier ))
+  fi
+  [[ $probability -lt 0 ]] && probability=0
+  [[ $probability -gt 100 ]] && probability=100
+  probability=$(( probability / 100.00 ))
+  if [[ ! $vux_action == "show_stats" ]]
+  then
+    if [[ $probability -ge $float_random ]]
+    then
+      good_song=1
+      $print_method -n "+"
+      percent_prob=$(( probability * 100 ))
+    else
+      $print_method -n "."
+    fi
+  fi
+}
+
+check_bell() {
+  good_song=0
+  current_chance=$(( RANDOM % 10000 ))
+  (( float_random = current_chance /10000 ))
+  if [[ $std_dev -eq 0 ]]
+  then
+    current_sigma=0
+  else
+    pre_rating=$1
+    (( current_sigma = (pre_rating - mean)/std_dev ))
+  fi
+  if [[ $current_sigma -lt 0 ]]
+  then
+    (( current_sigma = current_sigma * -1 ))
+    neg_sigma=1
+  else
+    neg_sigma=0
+  fi
+  if [[ $current_sigma -gt 4 ]]
+  then
+    area_sigma=$bell[17]
+  else
+    (( lower_sigma = int(current_sigma*4)/4.0 ))
+    (( upper_sigma = int(current_sigma*4)/4.0+0.25 ))
+    lower_area=$bell[int(current_sigma*4)+1]
+    upper_area=$bell[int(current_sigma*4)+2]
+    (( ratio_sigma= (upper_sigma - current_sigma) / \
+    (upper_sigma - lower_sigma) ))
+    (( area_sigma= lower_area * ratio_sigma + \
+    upper_area * (1-ratio_sigma) ))
+  fi
+  if [[ neg_sigma -eq 1 ]]
+  then
+    (( probability = 0.5 - area_sigma - below_mean_modifier / 100.0 ))
+  else
+    (( probability = 0.5 + area_sigma + above_mean_modifier / 100.0 ))
+  fi
+  if [[ ! $vux_action == "show_stats" ]]
+  then
+    if [[ $probability -ge $float_random ]]
+    then
+      good_song=1
+      $print_method -n "+"
+      percent_prob=$(( probability * 100 ))
+    else
+      $print_method -n "."
+    fi
+  fi
+}
+
+check_thresh() {
+  good_song=0
+  if [[ $1 -ge $threshold ]]
+  then
+    good_song=1
+    probability=1
+    [[ ! $vux_action == "show_stats" ]] && $print_method -n "+"
+  elif [[ $1 -ge $reprieve_threshold ]]
+  then
+    probability=$(( 1.00 / random_reprieve_factor ))
+    if [[ $(( RANDOM % $random_reprieve_factor )) -eq 0 ]]
+    then
+      [[ ! $vux_action == "show_stats" ]] && $print_method -n "!"
+      good_song=1
+    else
+      [[ ! $vux_action == "show_stats" ]] && $print_method -n "."
+    fi
+  else
+    probability=0
+    [[ ! $vux_action == "show_stats" ]] && $print_method -n "x"
+  fi
+}
+
+dummy_repeat() { aged_song=1 }
+
+dummy_rating() { good_song=1 ; percent_prob=100 }
+
+test_rating_first() {
+  $rating_method $rating[$current_pick]
+  [[ $good_song == 1 ]] && $repeat_method
+}
+
+test_repeat_first() {
+  $repeat_method
+  if [[ $force_new == 1 && $new_song == 1 ]]
+  then
+    dummy_rating
+  else
+    [[ $aged_song == 1 ]] && $rating_method $rating[$current_pick]
+  fi
+}
+
+find_all() {
+    current_number=$(( RANDOM % $#rating + 1 ))
+    current_pick=${${(k)rating}[$current_number]}
+    current_rating=$rating[$current_pick]
+}
+
+find_selection() {
+    current_number=$(( RANDOM % $#selection_rating + 1 ))
+    current_pick=${${(k)selection_rating}[$current_number]}
+    current_rating=$rating[$current_pick]
+}
+
+find_song() {
+  good_song=0
+  aged_song=0
+  new_song=0
+  age_bypass_count=$age_bypass
+  [[ $rating_method == "check_middle" ]] || compute_stats
+  $print_method
+  while [[ $good_song == 0 || $aged_song == 0 ]] {
+    $find_method
+    $test_order
+  }
+  print_current_status
+}
+
+print_current_status() {
+  $print_method
+  $print_rating_status
+  $print_repeat_status
+  $print_method
+}
+
+add_previous_songs() {
+  previous_songs=($previous_songs $current_pick)
+  if [[ $#previous_songs -gt $history_size ]]
+  then
+    previous_songs[1]="PLACEHOLDER"
+    previous_songs=(${previous_songs:#PLACEHOLDER})
+  fi
+}
+
+add_next_songs() {
+  next_songs=($current_pick $next_songs)
+  if [[ $#next_songs -gt $history_size ]]
+  then
+    next_songs[$#next_songs]="PLACEHOLDER"
+    next_songs=(${next_songs:#PLACEHOLDER})
+  fi
+}
+
+merge_next_prev() {
+  previous_songs=($previous_songs $next_songs)
+  unset next_songs
+}
+
+prune_previous_songs() {
+  previous_songs[$#previous_songs]="PLACEHOLDER"
+  previous_songs=(${previous_songs:#PLACEHOLDER})
+}
+
+prune_next_songs() {
+  next_songs[1]="PLACEHOLDER"
+  next_songs=(${next_songs:#PLACEHOLDER})
+}
+
+get_age_clock() {
+  current_seconds=`print -P %D{%s}`
+  if [[ ! -n $age[$current_pick] ]]
+  then
+    age_clock="-"
+    time_units=""
+  else
+    pre_age=$age[$current_pick]
+    current_age=$(( current_seconds - pre_age ))
+    age_clock=$(( current_age / age_format ))
+    time_units=$time_display
+  fi
+}
+
+status_middle() {
+  $print_method -n \
+  $rating[$current_pick]"/"$percent_prob"%"
+}
+
+status_bell() {
+  $print_method -n \
+  $rating[$current_pick]"/"$percent_prob"%/"$mean"/"$std_dev_show
+}
+
+status_thresh() {
+  $print_method -n \
+  $rating[$current_pick]"/"$threshold"/"$mean"/"$reprieve_threshold
+}
+
+status_age() {
+  get_age_clock
+  $print_method -n "/"$age_clock$time_units
+}
+
+update_count() {
+  count[$current_pick]=$default_count
+}
+
+update_age() {
+  age[$current_pick]=`print -P %D{%s}`
+}
+
+update_rating() {
+  pre_rating=$rating[$current_pick]
+  rating[$current_pick]=$(( pre_rating + rating_delta * delta_mult ))
+  check_maxmin
+  $print_method "NEW RATING: "$rating[$current_pick]
+}
+
+inverse_decrease() {
+  x=$(( (max_score - min_score) / 2 ))
+  y=$(( abs(current_rating - x) ))
+  rating_delta=$(( -1 * int( y / decrease_factor) - 1 ))
+}
+
+inverse_increase() {
+  x=$(( (max_score - min_score) / 2 ))
+  y=$(( abs(current_rating - x) ))
+  rating_delta=$(( int( y / increase_factor) + 1 ))
+}
+
+conservative_decrease() {
+  rating_delta=$(( int(current_rating / -decrease_factor) ))
+}
+
+conservative_increase() {
+  rating_delta=$(( int( (max_score - current_rating ) / increase_factor ) ))
+}
+
+accelerated_decrease() {
+  x=$(( current_rating - min_score ))
+  y=$(( max_score - current_rating ))
+  z=$(( x < y ? int(x/2) : int(y/2) ))
+  rating_delta=$(( z > 1 ? -z : -1 ))
+}
+
+accelerated_increase() {
+  x=$(( current_rating - min_score ))
+  y=$(( max_score - current_rating ))
+  z=$(( x < y ? int(x/2) : int(y/2) ))
+  rating_delta=$(( z > 1 ? z : 1 ))
+}
+
+dummy_play() {
+  was_skipped=$noplay_skip
+}
+
+check_maxmin() {
+  if [[ $rating[$current_pick] -gt $max_score ]] \
+    { rating[$current_pick]=$max_score }
+  if [[ $rating[$current_pick] -lt $min_score ]] \
+    { rating[$current_pick]=$min_score }
+}
+
+replace_rating() {
+  rating[$current_pick]=$force_to
+  check_maxmin
+  $print_method "NEW RATING: "$rating[$current_pick]
+}
+
+force_rating() {
+  if [[ -n $force_to ]]
+  then
+    force_method=replace_rating
+    force_update=:
+  elif [[ $noplay_skip == 1 ]]
+  then
+    force_method=($decrease_method)
+    force_update=update_rating
+  else
+    force_method=($increase_method)
+    force_update=update_rating
+  fi
+  if [[ -n $selection ]]
+  then
+    for i in ${(k)selection_rating}
+    do
+      current_pick=$i
+      current_rating=$rating[$i]
+      $print_method ${(Q)i}
+      $print_method "RATING:" $rating[$i]
+      $force_method
+      $force_update
+    done
+    $write_scorelist_method "$scorelist" "rating"
+    $stats_method
+  else
+    print "Use of -x force requires -e 'expression'." ; exit 1
+  fi
+}
+
+play_song() {
+  case ${(L)current_song} in
+    (*.mp3)
+      player=$mp3_player
+      player_options=(${=mp3_player_options})
+    ;;
+    (*.ogg)
+      player=$ogg_player
+      player_options=(${=ogg_player_options})
+    ;;
+    (*)
+      $print_method ERROR: unrecognized format:
+      $print_method $current_song
+      $print_method
+      was_skipped=1
+    ;;
+  esac
+  while ! : >$sound_device
+  do
+    $print_method Waiting...
+    sleep 1
+  done
+  if [[ ${(L)current_song} == http* || -f $current_song ]]
+  then
+    $player $player_options $current_song &
+    player_pid=$!
+    wait_for_player=0
+    wait
+    unset player_pid
+  else
+    $missing_method $current_song >> $missing_log
+    was_skipped=0
+  fi
+}
+
+playloop() {
+  open_sock || exit 6
+  print $$ > $vux_pid
+  set player
+  set control
+  ctl_song_choice=""
+  wait_for_player=1
+  trap 'int_trap' INT
+  trap 'hup_trap' HUP
+  save_counter=0
+  while :
+  do
+    set player_pid
+    set current_rating
+    set current_pick
+    delta_mult=1
+    if [[ -n $ctl_song_choice ]]
+    then
+      current_pick=$ctl_song_choice
+      ctl_song_choice=""
+      percent_prob=100
+      compute_stats
+      $print_method
+      $print_method -n "<"
+      print_current_status
+    elif [[ -n $next_songs ]]
+    then
+      current_pick=$next_songs[1]
+      prune_next_songs
+      percent_prob=100
+      compute_stats
+      $print_method
+      $print_method -n ">"
+      print_current_status
+    else
+      find_song
+    fi
+    add_previous_songs
+    current_song=${(Q)current_pick}
+    was_skipped=-1
+    $print_method ${current_song:h}
+    $print_method ${current_song:t}
+    print $current_song > $vux_dir/current_path
+    print ${current_song:t} > $vux_dir/current_song
+    $play_method
+    case $was_skipped in
+      (1)
+        $decrease_method
+        $print_method
+        $rating_skip
+        $repeat_skip
+      ;;
+      (-1)
+        $increase_method
+        $print_method
+        $rating_play
+        $repeat_play
+      ;;
+      (0)
+        $print_method ERROR PLAYING: $current_song
+      ;;
+      (2)
+        $repeat_play
+      ;;
+    esac
+    [[ $last_song -eq 1 ]] && int_trap
+    (( save_counter++ ))
+    if [[ $save_counter -ge $save_interval ]]
+    then
+      $write_scorelist_method "$scorelist" "rating"
+      $write_agelist_method "$agelist" "age"
+      $write_countlist_method "$countlist" "count"
+      save_counter=0
+    fi
+  done
+}
+
+int_trap() {
+  [[ -n $player_pid ]] && kill $player_pid
+  $write_scorelist_method "$scorelist" "rating"
+  $write_agelist_method "$agelist" "age"
+  $write_countlist_method "$countlist" "count"
+  $stats_method
+  rm $verbose_arg $vux_pid
+  rm $verbose_arg $vux_sock
+  $print_method
+  exit 0
+}
+
+hup_trap() {
+  control=""
+  zsocket -a -t -d 8 9
+  read -u 8 control
+  if [[ ! -n $control ]]
+  then
+    was_skipped=1
+    [[ -n $player_pid ]] && kill $player_pid
+  else
+    [[ $wait_for_player == 0 ]] && hup_handler || \
+    { print -u 8 "vux: busy" ; print -u 8 "vux: command failed" }
+  fi
+}
+
+hup_handler() {
+  unset ctl_action
+  unset ctl_direction
+  unset ctl_rating
+  unset ctl_unknown_option
+  unset ctl_usage_error
+  unset ctl_mult_stat
+  unset ctl_mult
+  $print_method
+  $print_method -n "vuxctl request: "
+  for i in ${=control}
+  do
+    $print_method -n "$i "
+    case $i in
+      ("pause"|"resume"|"start"|"stop"|"reload"|"save"|"history"|"after")
+        ctl_action="$i"
+      ;;
+      ("next"|"previous"|"forward"|"replay")
+        ctl_direction="$i"
+      ;;
+      ("up"|"down"|[0-9]##)
+        ctl_rating="$i"
+      ;;
+      ("double"|"half")
+        ctl_mult="$i"
+      ;;
+      ("help")
+        ctl_usage_error=1
+      ;;
+      (*)
+        ctl_usage_error=1
+        ctl_unknown_option=($ctl_unknown_option $i)
+      ;;
+    esac
+  done
+  $print_method
+  if [[ -n $ctl_usage_error ]]
+  then
+    if [[ -n $ctl_unknown_option ]]
+    then
+      print -u 8 "vux: unknown option: $ctl_unknown_option"
+    fi
+    print -u 8 $ctl_usage
+    print -u 8 "vux: command error"
+    unset ctl_mult
+    unset ctl_rating
+    unset ctl_direction
+    unset ctl_action
+  fi
+  case $ctl_mult in
+    ("double")
+      delta_mult=$(( delta_mult * 2 ))
+      print -u 8 "vux: rating multiplier = $delta_mult"
+    ;;
+    ("half")
+      delta_mult=$(( delta_mult / 2 ))
+      if [[ $delta_mult -lt 1 ]] { delta_mult=1 }
+      print -u 8 "vuxctl: rating multiplier = $delta_mult"
+    ;;
+  esac
+  case $ctl_rating in
+    ([0-9]##)
+      was_skipped=2
+      force_to=$ctl_rating
+      replace_rating
+    ;;
+    ("up")
+      was_skipped=2
+      $increase_method
+      update_rating
+    ;;
+    ("down")
+      was_skipped=2
+      $decrease_method
+      update_rating
+    ;;
+  esac
+  case $ctl_direction in
+    ("next")
+      was_skipped=2
+      kill $player_pid
+      wait_for_player=1
+    ;;
+    ("previous")
+      was_skipped=2
+      prune_previous_songs
+      add_next_songs
+      ctl_song_choice=$previous_songs[$#previous_songs]
+      kill $player_pid
+      wait_for_player=1
+    ;;
+    ("forward")
+      was_skipped=2
+      merge_next_prev
+      kill $player_pid
+      wait_for_player=1
+    ;;
+    ("replay")
+      was_skipped=2
+      ctl_song_choice=$current_pick
+      kill $player_pid
+      wait_for_player=1
+    ;;
+  esac
+  case $ctl_action in
+    ("resume")
+      pkill -CONT -P $player_pid
+      kill -CONT $player_pid
+    ;;
+    ("pause")
+      player_status=`ps -p $player_pid -o s=`
+      if [[ $player_status == "T" ]]
+      then
+        pkill -CONT -P $player_pid
+        kill -CONT $player_pid
+      else
+        kill -STOP $player_pid
+        pkill -STOP -P $player_pid
+      fi
+    ;;
+    ("stop")
+      int_trap
+    ;;
+    ("reload")
+      unset rating
+      read_scorelist
+    ;;
+    ("save")
+      save_file "$scorelist" "rating"
+    ;;
+    ("history")
+      print -u 8
+      print -u 8 previous: $#previous_songs
+      for i in $previous_songs
+      do
+        print -u 8 ${(Q)i}
+      done
+      print -u 8 next: $#next_songs
+      for i in $next_songs
+      do
+        print -u 8 ${(Q)i}
+      done
+      print -u 8
+    ;;
+    ("after")
+      last_song=1
+      print -u 8 "vux: will quit after this song."
+    ;;
+  esac
+  print -u 8 "vux: ok"
+}
+
+open_sock() {
+  zsocket -l -d 9 $vux_sock
+}
+
+ctl_usage="usage: vuxctl [commands]
+commands:
+
+ start     Start vux
+ 
+ double    Double next rating change
+ half      Halve next rating change
+ 
+ up        Raise rating
+ down      Lower rating
+ <number>  Change rating to <number>
+ 
+ next      Move to next song
+ previous  Move to previous song
+ forward   Move to next random song, ignoring history
+ replay    Repeat song
+ 
+ pause     Pause or resume player
+ resume    Resume player
+ stop      Quit vux
+ reload    Reload scorelist from file
+ save      Save scorelist to file
+ history   Show history of songs played
+ after     Exit vux after current song is finished
+ 
+ help      Summary of options"
+
+usage="usage: $prog_name [options]
+options:
+
+-x p|g|m|w|r|f  Action: play|generate|merge|weed|ratings|force
+
+-s file     Use file as scorelist    -S  Disable saving scorelist
+-a file     Use file as agelist      -A  Disable saving agelist
+-z file     Use file as countlist    -Z  Disable saving countlist
+-y file     Use file as missing log  -Y  Disable missing log
+-p file     Use file as playlist     -c  Disable rating check
+-w b|t|m    Use rating method        -d  Disable rating updates on play
+-W a|c      Repeats: age|count       -l  Disable rating updates on skip
+-G t|s|n    Use age bypass method    -j  Disable repeat check
+-e pattern  Use only matching songs  -b  Disable repeat updates on play
+-O device   Check sound device       -k  Disable repeat updates on skip
+-M val      Use minimum age val      -n  Disable player
+-m i|c|a    Use decrease method
+-i i|c|a    Use increase method
+
+-t n  Add n% to >=mean               -u  Check age before rating
+-T n  Subtract n% from <mean         -R  Show ratings after processing
+-C n  Use random reprieve factor n   -V  Verbose file manipulation
+-D n  Use decrease factor n          -v  Show version and exit
+-I n  Use increase factor n          -F  Skip songs with -n and -xf
+-U n  Use default rating n           -q  Minimize vux output
+-X n  Use max score n                -P  Always play new songs
+-N n  Use count n                    -g  print stats in xgraph format
+-f n  Force rating to n with -xf     -h  Show summary of options
+-B n  Use bend factor n
+-o n  Use end mult n
+-r n  Use middle mult n"
+
+[[ -r $system_vuxrc ]] && source $system_vuxrc
+[[ ! -d $vux_dir ]] && { mkdir -v $vux_dir || exit 2 }
+[[ -r $vuxrc ]] && source $vuxrc || \
+  { [[ -r $system_vuxrc ]] && cp $verbose_arg $system_vuxrc $vuxrc }
+
+while getopts :a:bcde:f:ghi:jklm:no:p:qr:s:t:uvw:x:y:z:AB:C:D:FG:I:M:N:O:PRST:U:VW:X:YZ o
+do
+  case $o in
+    ("a") agelist=$OPTARG ;;
+    ("b") update_repeat_plays=0 ;;
+    ("c") check_ratings=0 ;;
+    ("d") update_rating_plays=0 ;;
+    ("e") selection=$OPTARG ;;
+    ("f") force_to=$OPTARG ;;
+    ("g") xgraph=1 ;;
+    ("h") print $usage ; exit 0 ;;
+    ("i") increase_method=$OPTARG ;;
+    ("j") check_repeats=0 ;;
+    ("k") update_repeat_skips=0 ;;
+    ("l") update_rating_skips=0 ;;
+    ("m") decrease_method=$OPTARG ;;
+    ("n") play_method=dummy_play ;;
+    ("o") end_mult=$OPTARG ;;
+    ("p") playlist=$OPTARG ;;
+    ("q") print_method=: ;;
+    ("r") middle_mult=$OPTARG ;;
+    ("s") scorelist=$OPTARG ;;
+    ("t") above_mean_modifier=$OPTARG ;;
+    ("u") test_order=test_repeat_first ;;
+    ("v") print $prog_name $prog_ver ; exit 0 ;;
+    ("w") rating_method=$OPTARG ;;
+    ("x") vux_action=$OPTARG ;;
+    ("y") missing_log=$OPTARG ;;
+    ("z") countlist=$OPTARG ;;
+    ("A") save_agelist=0 ;;
+    ("B") bend_factor=$OPTARG ;;
+    ("C") random_reprieve_factor=$OPTARG ;;
+    ("D") decrease_factor=$OPTARG ;;
+    ("F") noplay_skip=1 ;;
+    ("G") age_bypass=$OPTARG ;;
+    ("I") increase_factor=$OPTARG ;;
+    ("M") minimum_age=$OPTARG ;;
+    ("N") default_count=$OPTARG ;;
+    ("O") sound_device=$OPTARG ;;
+    ("P") force_new=1 ;;
+    ("R") stats_method=show_stats ;;
+    ("S") save_scorelist=0 ;;
+    ("T") below_mean_modifier=$OPTARG ;;
+    ("U") default_score=$OPTARG ;;
+    ("V") verbose_files=1 ;;
+    ("W") repeat_method=$OPTARG ;;
+    ("X") max_score=$OPTARG ;;
+    ("Y") use_missing=0 ;;
+    ("Z") save_countlist=0 ;;
+    ("?") print $usage ; exit 1 ;;
+  esac
+done
+
+read_scorelist() {
+  [[ -r $scorelist ]] && read_file "$scorelist" "rating" || exit 4
+}
+
+read_agelist() {
+  [[ $vux_action == playloop || $vux_action == prune_scorelist ]] \
+  && read_file "$agelist" "age"
+}
+  
+read_countlist() {
+  [[ $vux_action == playloop || $vux_action == prune_scorelist ]] \
+  &&  read_file "$countlist" "count"
+}
+
+if [[ $xgraph == 1 ]]
+then
+  print_method=:
+  verbose_files=0
+  stats_print=:
+  xgraph_print=print
+else
+  stats_print=print
+  xgraph_print=:
+fi
+
+case $vux_action in
+  (g*) vux_action=generate_new_scorelist ;;
+  (m*) vux_action=merge_playlists ; read_scorelist ;;
+  (p*) vux_action=playloop ; read_scorelist ;;
+  (r*) vux_action=show_stats ; read_scorelist ;;
+  (w*) vux_action=prune_scorelist ; read_scorelist ;;
+  (f*) vux_action=force_rating ; read_scorelist ;;
+  (*) print Incorrect use of -x. ; print $usage ; exit 1 ;;
+esac
+
+case $rating_method in
+  (m*)
+    rating_method=check_middle
+    rating_play=update_rating
+    rating_skip=update_rating
+    print_rating_status=status_middle
+    write_scorelist_method=save_file
+  ;;
+  (b*)
+    rating_method=check_bell
+    rating_play=update_rating
+    rating_skip=update_rating
+    print_rating_status=status_bell
+    write_scorelist_method=save_file
+  ;;
+  (t*)
+    rating_method=check_thresh
+    rating_play=update_rating
+    rating_skip=update_rating
+    print_rating_status=status_thresh
+    write_scorelist_method=save_file
+  ;;
+  (*) print Incorrect use of -w. ; print $usage ; exit 1 ;;
+esac
+
+case $repeat_method in
+  (a*)
+    repeat_method=check_age
+    print_repeat_status=status_age
+    write_agelist_method=save_file
+    repeat_play=update_age
+    repeat_skip=update_age
+    write_agelist_method=save_file
+    write_countlist_method=:
+    [[ -r $agelist ]] && read_agelist
+  ;;
+  (c*)
+    repeat_method=check_count
+    print_repeat_status=:
+    write_countlist_method=save_file
+    repeat_play=update_count
+    repeat_skip=update_count
+    write_countlist_method=save_file
+    write_agelist_method=:
+    [[ -r $countlist ]] && read_countlist
+  ;;
+  (*) print Incorrect use of -W. ; print $usage ; exit 1 ;;
+esac
+
+case $decrease_method in
+  (i*) decrease_method=inverse_decrease ;;
+  (c*) decrease_method=conservative_decrease ;;
+  (a*) decrease_method=accelerated_decrease ;;
+  (*) print Incorrect use of -J.  Using default. ;;
+esac
+
+case $increase_method in
+  (i*) increase_method=inverse_increase ;;
+  (c*) increase_method=conservative_increase ;;
+  (a*) increase_method=accelerated_increase ;;
+  (*) print Incorrect use of -J.  Using default. ;;
+esac
+
+case $age_bypass in
+  (t*) age_bypass=$#rating ;;
+  (s*) age_bypass=$(( int(sqrt($#rating)) )) ;;
+esac
+
+if [[ $minimum_age == (#b)([0-9]##)([dhms]) ]]
+then
+  minimum_age=$match[1]
+  time_display=$match[2]
+else
+  print Incorrect use of -M. ; print $usage ; exit 1
+fi
+
+case $time_display in
+  ("d") age_format=86400 ;;
+  ("h") age_format=3600 ;;
+  ("m") age_format=60 ;;
+  ("s") age_format=1 ;;
+esac
+
+minimum_age=$(( minimum_age * age_format ))
+
+[[ $check_ratings == 0 ]] && rating_method=dummy_rating
+[[ $check_repeats == 0 ]] && repeat_method=dummy_repeat
+[[ $save_scorelist == 0 ]] && write_scorelist_method=:
+[[ $save_agelist == 0 ]] && write_agelist_method=:
+[[ $save_countlist == 0 ]] && write_countlist_method=:
+[[ $update_rating_plays == 0 ]] && rating_play=:
+[[ $update_repeat_plays == 0 ]] && repeat_play=:
+[[ $update_rating_skips == 0 ]] && rating_skip=:
+[[ $update_repeat_skips == 0 ]] && repeat_skip=:
+[[ $verbose_files == 0 ]] && verbose_arg="" || verbose_arg="-v"
+[[ $force_new == 1 ]] && test_order=test_repeat_first
+
+if [[ ! $use_missing == 0 ]]
+then
+  if [[ -e $missing_log && -s $missing_log ]]
+  then
+    cp $verbose_arg $missing_log $missing_log.bak
+  fi
+  missing_method=print
+else
+  missing_method=:
+fi
+
+if [[ -n $selection ]]
+then
+  $print_method -n Finding selection...
+  find_method=find_selection
+  for i in ${(k)rating}
+  do
+    if eval \[\[ "$i" \=\= ${selection} \]\]
+    then
+      selection_rating[$i]=$rating[$i]
+    fi
+  done
+  if [[ $#selection_rating -eq 0 ]]
+  then
+    $print_method no matching songs found.
+    exit 5
+  else
+    $print_method $#selection_rating songs found.
+  fi
+else
+  find_method=find_all
+fi
+
+$vux_action

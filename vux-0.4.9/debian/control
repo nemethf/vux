@@ -1,0 +1,20 @@
+Source: vux
+Section: sound
+Priority: optional
+Maintainer: Brian Nelson <bnelson@debian.org>
+Build-Depends-Indep: debhelper (>> 3.0.0)
+Standards-Version: 3.6.1
+
+Package: vux
+Architecture: all
+Depends: zsh (>> 4.2.1-8), vorbis-tools, mpg321 | mp3-decoder, lockfile-progs
+Description: A rating-based, random ogg and mp3 player
+ vux is a command-line ogg and mp3 utility that plays songs according to
+ a rating system designed to keep track of user listening habits.  By
+ default, vux will give each song a percent chance of playing, based on
+ where it lies on a bell curve of all ratings.  Songs are picked at
+ random, then played if they pass the percent chance.  Ratings increase
+ when you play complete songs and decrease when you skip them.  The
+ ratings scorelist is plain text for manual editing.  By default, a
+ separate agelist is maintained to prevent repeats based on time since
+ last played.
